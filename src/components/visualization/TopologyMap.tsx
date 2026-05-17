@@ -50,7 +50,8 @@ function convertToReactFlowNodes(nodes: Node[]): ReactFlowNode<AgnosticNodeData>
       serviceType: node.serviceType,
       status: node.status,
       health: node.health,
-      provider: node.provider
+      provider: node.provider,
+      metadata: node.metadata
     }
   }));
 }

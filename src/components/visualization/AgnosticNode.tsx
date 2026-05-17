@@ -13,6 +13,10 @@ export interface AgnosticNodeData {
   status: NodeStatus;
   health: number;
   provider?: string;
+  metadata?: {
+    immunityTicks?: number;
+    [key: string]: unknown;
+  };
 }
 
 /**
@@ -87,6 +91,7 @@ function getServiceIcon(serviceType: ServiceType): string {
 export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
   const styles = getStatusStyles(data.status, data.health);
   const icon = getServiceIcon(data.serviceType);
+  const isStabilizing = (data.metadata?.immunityTicks ?? 0) > 0;
 
   return (
     <div className="relative">
@@ -105,6 +110,7 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
           border-2
           ${styles.borderColor}
           ${styles.glowColor}
+          ${isStabilizing ? 'shadow-[0_0_15px_rgba(6,182,212,0.5)]' : ''}
           shadow-lg
           rounded-lg
           p-4
@@ -156,6 +162,11 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
           >
             <div className="w-2 h-2 rounded-full bg-current animate-pulse transition-all duration-500 ease-in-out" />
             {data.status.toUpperCase()}
+            {isStabilizing && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-300 ring-1 ring-cyan-400/30">
+                🛡️ Stabilizing
+              </span>
+            )}
           </div>
         </div>
 

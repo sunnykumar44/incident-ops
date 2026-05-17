@@ -192,7 +192,8 @@ function simulationReducer(
                 ...node.metadata,
                 lastActionApplied: 'restart',
                 lastActionTimestamp: Date.now(),
-                actionLocked: true // Prevent tick from overwriting for 1 tick
+                actionLocked: true,
+                immunityTicks: 3
               }
             };
             console.log('🔄 Action Applied:', {
@@ -226,7 +227,8 @@ function simulationReducer(
                 lastScaled: Date.now(),
                 lastActionApplied: 'scale_up',
                 lastActionTimestamp: Date.now(),
-                actionLocked: true
+                actionLocked: true,
+                immunityTicks: 3
               }
             };
             console.log('⚡ Action Applied:', {
@@ -248,13 +250,19 @@ function simulationReducer(
         timeline.push(`[${timestamp}] 🚀 Deploying fix to ${nodeName}...`);
         
         updatedSimulation.fixDeployed = true;
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+        clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
             const newHealth = Math.min(100, node.health + 30);
             return {
               ...node,
               health: newHealth,
-              status: newHealth >= 70 ? 'recovering' as const : node.status
+              status: newHealth >= 70 ? 'recovering' as const : node.status,
+              metadata: {
+                ...node.metadata,
+                lastActionApplied: 'deploy_fix',
+                lastActionTimestamp: Date.now(),
+                immunityTicks: 3
+              }
             };
           }
           return node;
@@ -282,12 +290,18 @@ function simulationReducer(
         }
 
         // Apply immediate health improvement to the target node
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+        clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
             return {
               ...node,
               health: Math.min(100, node.health + 15),
-              status: node.health + 15 >= 70 ? 'recovering' as const : node.status
+              status: node.health + 15 >= 70 ? 'recovering' as const : node.status,
+              metadata: {
+                ...node.metadata,
+                lastActionApplied: 'enable_circuit_breaker',
+                lastActionTimestamp: Date.now(),
+                immunityTicks: 3
+              }
             };
           }
           return node;
@@ -310,11 +324,17 @@ function simulationReducer(
         // Other actions have minimal effect
         timeline.push(`[${timestamp}] ⚙️ Executing ${actionId.replace(/_/g, ' ')} on ${nodeName}...`);
         
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+        clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
             return {
               ...node,
-              health: Math.min(100, node.health + 10)
+              health: Math.min(100, node.health + 10),
+              metadata: {
+                ...node.metadata,
+                lastActionApplied: actionId,
+                lastActionTimestamp: Date.now(),
+                immunityTicks: 3
+              }
             };
           }
           return node;
@@ -494,14 +514,16 @@ export function useSimulationEngine() {
         if (context.state.runtimeState === 'MELTDOWN') {
           const degradationRate = state.scenario.pressure.escalationRate;
           const updatedNodes = context.state.nodes.map(node => {
-            // Skip degradation if node has actionLocked flag (action just applied)
-            if (node.metadata?.actionLocked) {
-              // Clear the lock for next tick
+            const currentImmunityTicks = Number(node.metadata?.immunityTicks ?? 0);
+
+            // Skip degradation while the node is stabilizing
+            if (currentImmunityTicks > 0) {
               return {
                 ...node,
                 metadata: {
                   ...node.metadata,
-                  actionLocked: false
+                  actionLocked: false,
+                  immunityTicks: currentImmunityTicks - 1
                 }
               };
             }
@@ -563,9 +585,10 @@ export function useSimulationEngine() {
         }
 
         // Check success conditions on every tick
-        const allNodesHealthy = (updates.nodes || context.state.nodes).every(node => node.health >= 80);
+        const currentNodes = updates.nodes || context.state.nodes;
+        const allNodesHealthy = currentNodes.every(node => node.health > 80);
         
-        if (allNodesHealthy) {
+        if (context.state.fixDeployed && allNodesHealthy) {
           // Increment stable ticks counter
           updates.stableTicks = (context.state.stableTicks || 0) + 1;
           
@@ -577,7 +600,7 @@ export function useSimulationEngine() {
             
             // Add timeline entry
             const timeline = [...context.state.incidentTimeline];
-            timeline.push(`🎉 Incident resolved after ${context.state.currentTick} ticks - All systems stable`);
+            timeline.push('🎉 Incident Resolved: Post-mortem report generated.');
             updates.incidentTimeline = timeline;
             
             // Dispatch recovery event
