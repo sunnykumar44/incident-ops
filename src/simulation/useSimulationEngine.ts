@@ -195,7 +195,7 @@ function simulationReducer(
                 lastActionApplied: 'restart',
                 lastActionTimestamp: Date.now(),
                 actionLocked: true,
-                immunityTicks: 3
+                immunityTicks: 6
               }
             };
             console.log('🔄 Action Applied:', {
@@ -218,7 +218,7 @@ function simulationReducer(
         
         clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
-            const newHealth = Math.min(100, node.health + 30);
+            const newHealth = Math.min(100, node.health + 50);
             const updatedNode = {
               ...node,
               health: newHealth,
@@ -230,7 +230,7 @@ function simulationReducer(
                 lastActionApplied: 'scale_up',
                 lastActionTimestamp: Date.now(),
                 actionLocked: true,
-                immunityTicks: 3
+                immunityTicks: 6
               }
             };
             console.log('⚡ Action Applied:', {
@@ -263,17 +263,16 @@ function simulationReducer(
                 ...node.metadata,
                 lastActionApplied: 'deploy_fix',
                 lastActionTimestamp: Date.now(),
-                immunityTicks: 3
+                immunityTicks: 6
               }
             };
           }
           return node;
         });
         
-        if (updatedSimulation.runtimeState === 'INVESTIGATING') {
-          updatedSimulation.runtimeState = 'FIX_DEPLOYING';
-          timeline.push('🔧 Fix deployment initiated - System entering recovery phase');
-        }
+        // Immediately move to FIX_DEPLOYING so healing behavior and UI update take effect
+        updatedSimulation.runtimeState = 'FIX_DEPLOYING';
+        timeline.push('🔧 Fix deployment initiated - System entering recovery phase');
         
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
         timeline.push(`✅ Fix deployed to ${nodeName} - Recovery process started`);
@@ -302,7 +301,7 @@ function simulationReducer(
                 ...node.metadata,
                 lastActionApplied: 'enable_circuit_breaker',
                 lastActionTimestamp: Date.now(),
-                immunityTicks: 3
+                immunityTicks: 6
               }
             };
           }
@@ -335,7 +334,7 @@ function simulationReducer(
                 ...node.metadata,
                 lastActionApplied: actionId,
                 lastActionTimestamp: Date.now(),
-                immunityTicks: 3
+                immunityTicks: 6
               }
             };
           }
@@ -376,7 +375,7 @@ function simulationReducer(
               healthDelta = 20;
               break;
             case 'scale_up':
-              healthDelta = 15;
+              healthDelta = 50;
               break;
             case 'deploy_fix':
               healthDelta = 30;
@@ -512,8 +511,8 @@ export function useSimulationEngine() {
           updates.ticksSinceHpaEnabled = context.state.ticksSinceHpaEnabled + 1;
         }
 
-        // Apply pressure degradation during MELTDOWN with oscillation
-        if (context.state.runtimeState === 'MELTDOWN') {
+        // Apply pressure degradation during MELTDOWN or INVESTIGATING (INVESTIGATING is 50% less severe)
+        if (context.state.runtimeState === 'MELTDOWN' || context.state.runtimeState === 'INVESTIGATING') {
           const degradationRate = state.scenario.pressure.escalationRate;
           const updatedNodes = context.state.nodes.map(node => {
             const currentImmunityTicks = Number(node.metadata?.immunityTicks ?? 0);
@@ -529,12 +528,13 @@ export function useSimulationEngine() {
                 }
               };
             }
-            
-            // Add realistic oscillation to health degradation
-            const baseDegrade = degradationRate * 10;
+
+            // Use a smaller degradation when INVESTIGATING (50% penalty reduction)
+            const multiplier = context.state.runtimeState === 'MELTDOWN' ? 4 : 2;
+            const baseDegrade = degradationRate * multiplier;
             const oscillation = generateNoise();
             const newHealth = Math.max(0, node.health - baseDegrade + oscillation);
-            
+
             return {
               ...node,
               health: newHealth,
@@ -545,37 +545,11 @@ export function useSimulationEngine() {
           updates.nodes = updatedNodes;
         }
 
-        // Apply recovery when fix is deployed - increases ALL nodes' health by 10% per tick
-        if (context.state.fixDeployed) {
+        // Apply healing during FIX_DEPLOYING: nodes stop losing health and gain +5% per tick
+        if (context.state.runtimeState === 'FIX_DEPLOYING') {
           const updatedNodes = context.state.nodes.map(node => {
-            // Add 10% health recovery with realistic oscillation
-            const baseRecovery = 10;
             const oscillation = generateNoise();
-            const newHealth = Math.min(100, node.health + baseRecovery + oscillation);
-            
-            return {
-              ...node,
-              health: newHealth,
-              status: newHealth >= 80 ? 'active' as const :
-                      newHealth >= 70 ? 'recovering' as const : node.status
-            };
-          });
-          updates.nodes = updatedNodes;
-          
-          // Transition to FIX_DEPLOYING state if not already there
-          if (context.state.runtimeState === 'INVESTIGATING') {
-            updates.runtimeState = 'FIX_DEPLOYING';
-          }
-        }
-        // Apply recovery during FIX_DEPLOYING with HPA enabled (legacy path)
-        else if (context.state.runtimeState === 'FIX_DEPLOYING' && context.state.hpaEnabled) {
-          const recoveryRate = state.scenario.pressure.recoveryRate;
-          const updatedNodes = context.state.nodes.map(node => {
-            // Add realistic oscillation to health recovery
-            const baseRecovery = recoveryRate * 10;
-            const oscillation = generateNoise();
-            const newHealth = Math.min(100, node.health + baseRecovery + oscillation);
-            
+            const newHealth = Math.min(100, node.health + 5 + oscillation);
             return {
               ...node,
               health: newHealth,
