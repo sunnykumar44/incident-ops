@@ -156,6 +156,13 @@ function simulationReducer(
 
       const { actionId, targetNodeId } = action.payload;
       let updatedSimulation = { ...state.simulation };
+      
+      // CRITICAL: Deep clone nodes array BEFORE any mutations
+      let clonedNodes = updatedSimulation.nodes.map(node => ({
+        ...node,
+        metadata: { ...node.metadata }
+      }));
+      
       const timeline = [...updatedSimulation.incidentTimeline];
 
       // Add immediate timeline entry with timestamp and action-specific message
@@ -167,7 +174,7 @@ function simulationReducer(
       });
       
       // Get target node name for better messages
-      const targetNode = updatedSimulation.nodes.find(n => n.id === targetNodeId);
+      const targetNode = clonedNodes.find(n => n.id === targetNodeId);
       const nodeName = targetNode?.label || targetNodeId;
 
       // Handle specific actions that affect simulation state
@@ -175,13 +182,27 @@ function simulationReducer(
         // Restart: Immediately set health to 100 and status to active
         timeline.push(`[${timestamp}] 🔄 Initializing cold restart of ${nodeName}...`);
         
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+        clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
-            return {
+            const updatedNode = {
               ...node,
               health: 100,
-              status: 'active' as const
+              status: 'active' as const,
+              metadata: {
+                ...node.metadata,
+                lastActionApplied: 'restart',
+                lastActionTimestamp: Date.now(),
+                actionLocked: true // Prevent tick from overwriting for 1 tick
+              }
             };
+            console.log('🔄 Action Applied:', {
+              actionId,
+              targetNodeId,
+              newHealth: updatedNode.health,
+              newStatus: updatedNode.status,
+              timestamp: new Date().toISOString()
+            });
+            return updatedNode;
           }
           return node;
         });
@@ -192,19 +213,30 @@ function simulationReducer(
         // Scale up: Increase health by 30% and update metadata
         timeline.push(`[${timestamp}] ⚡ Scaling up ${nodeName}...`);
         
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+        clonedNodes = clonedNodes.map(node => {
           if (node.id === targetNodeId) {
             const newHealth = Math.min(100, node.health + 30);
-            return {
+            const updatedNode = {
               ...node,
               health: newHealth,
               status: newHealth >= 70 ? 'recovering' as const : node.status,
               metadata: {
                 ...node.metadata,
                 podCount: ((node.metadata?.podCount as number) || 3) + 2,
-                lastScaled: Date.now()
+                lastScaled: Date.now(),
+                lastActionApplied: 'scale_up',
+                lastActionTimestamp: Date.now(),
+                actionLocked: true
               }
             };
+            console.log('⚡ Action Applied:', {
+              actionId,
+              targetNodeId,
+              newHealth: updatedNode.health,
+              newStatus: updatedNode.status,
+              timestamp: new Date().toISOString()
+            });
+            return updatedNode;
           }
           return node;
         });
@@ -293,8 +325,8 @@ function simulationReducer(
 
       updatedSimulation.incidentTimeline = timeline;
       
-      // Deep clone nodes to ensure React detects changes
-      updatedSimulation.nodes = updatedSimulation.nodes.map(node => ({ ...node }));
+      // Assign the deeply cloned nodes array (already cloned at the start)
+      updatedSimulation.nodes = clonedNodes;
 
       return {
         ...state,
@@ -462,6 +494,18 @@ export function useSimulationEngine() {
         if (context.state.runtimeState === 'MELTDOWN') {
           const degradationRate = state.scenario.pressure.escalationRate;
           const updatedNodes = context.state.nodes.map(node => {
+            // Skip degradation if node has actionLocked flag (action just applied)
+            if (node.metadata?.actionLocked) {
+              // Clear the lock for next tick
+              return {
+                ...node,
+                metadata: {
+                  ...node.metadata,
+                  actionLocked: false
+                }
+              };
+            }
+            
             // Add realistic oscillation to health degradation
             const baseDegrade = degradationRate * 10;
             const oscillation = generateNoise();
