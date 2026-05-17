@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducer, useEffect, useRef, useCallback } from 'react';
-import { EventDispatcher, SimulationEvent } from '../core/EventDispatcher';
+import { EventDispatcher, SimulationEvent, globalEventDispatcher } from '../core/EventDispatcher';
 import { RuntimeState, NodeAction } from '../core/types';
 import { Scenario, Node } from '../schema/Scenario';
 import { 
@@ -153,6 +153,8 @@ function simulationReducer(
       if (!state.simulation || !state.scenario) {
         return state;
       }
+
+      console.log('REDUCER RECEIVED ACTION:', action.payload);
 
       const { actionId, targetNodeId } = action.payload;
       let updatedSimulation = { ...state.simulation };
@@ -651,33 +653,30 @@ export function useSimulationEngine() {
 
   // Subscribe to events and update state
   useEffect(() => {
-    const dispatcher = dispatcherRef.current;
+    const handleUserAction = (event: SimulationEvent) => {
+      if (!event.payload) {
+        return;
+      }
 
-    const unsubscribe = dispatcher.onAll((event: SimulationEvent) => {
-      // Handle specific events that should trigger state updates
+      dispatch({
+        type: 'USER_ACTION_DISPATCHED',
+        payload: {
+          actionId: event.payload.actionId as string,
+          targetNodeId: event.payload.targetNodeId as string
+        }
+      });
+    };
+
+    const handleEngineEvent = (event: SimulationEvent) => {
       switch (event.type) {
-        case 'USER_ACTION_DISPATCHED':
-          if (event.payload) {
-            dispatch({
-              type: 'USER_ACTION_DISPATCHED',
-              payload: {
-                actionId: event.payload.actionId as string,
-                targetNodeId: event.payload.targetNodeId as string
-              }
-            });
-          }
-          break;
-
         case 'TICK_END':
           if (event.payload && state.simulation) {
-            // Extract all updated fields from the payload
             const updates: Partial<SimulationState> = {
               currentTick: event.payload.tick as number,
               runtimeState: event.payload.runtimeState as RuntimeState,
               score: event.payload.score as number
             };
-            
-            // Include all other fields that may have been updated
+
             if (event.payload.systemHealthScore !== undefined) {
               updates.systemHealthScore = event.payload.systemHealthScore as number;
             }
@@ -699,7 +698,7 @@ export function useSimulationEngine() {
             if (event.payload.snapshotLog) {
               updates.snapshotLog = event.payload.snapshotLog as typeof state.simulation.snapshotLog;
             }
-            
+
             dispatch({
               type: 'TICK_UPDATE',
               payload: updates
@@ -712,14 +711,17 @@ export function useSimulationEngine() {
           break;
 
         case 'INCIDENT_RESOLVED':
-          // Stop simulation when incident is resolved
           dispatch({ type: 'STOP_SIMULATION' });
           break;
       }
-    });
+    };
+
+    const unsubscribeUserAction = globalEventDispatcher.on('USER_ACTION_DISPATCHED', handleUserAction);
+    const unsubscribeEngine = dispatcherRef.current.onAll(handleEngineEvent);
 
     return () => {
-      unsubscribe();
+      unsubscribeUserAction();
+      unsubscribeEngine();
     };
   }, [state.simulation]);
 
