@@ -2,6 +2,7 @@
 
 import { Node as SimulationNode } from '@/schema/Scenario';
 import { globalEventDispatcher } from '@/core/EventDispatcher';
+import { RuntimeState } from '@/core/types';
 
 /**
  * Props for ActionPanel component
@@ -9,6 +10,8 @@ import { globalEventDispatcher } from '@/core/EventDispatcher';
 interface ActionPanelProps {
   selectedNode: SimulationNode;
   onClose: () => void;
+  runtimeState?: RuntimeState;
+  currentTick?: number;
 }
 
 /**
@@ -43,7 +46,7 @@ function getHealthColor(health: number): string {
  * ActionPanel Component
  * Dark-themed right-side panel for node investigation and repair actions
  */
-export function ActionPanel({ selectedNode, onClose }: ActionPanelProps) {
+export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick }: ActionPanelProps) {
   /**
    * Handle action button click
    * Dispatches USER_ACTION_DISPATCHED event without mutating state
@@ -55,8 +58,76 @@ export function ActionPanel({ selectedNode, onClose }: ActionPanelProps) {
     });
   };
 
+  // Check if incident is resolved
+  const isResolved = runtimeState === 'RECOVERED';
+
   return (
     <div className="absolute top-0 right-0 h-full w-96 bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col z-10">
+      {/* Incident Resolved Overlay */}
+      {isResolved && (
+        <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="text-center px-8 py-12 space-y-6">
+            {/* Success Icon */}
+            <div className="flex justify-center">
+              <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-4 border-emerald-500 flex items-center justify-center">
+                <svg
+                  className="w-12 h-12 text-emerald-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div>
+              <h2 className="text-3xl font-bold text-emerald-400 mb-2">
+                Incident Resolved!
+              </h2>
+              <p className="text-slate-400 text-sm">
+                All systems have been restored to healthy state
+              </p>
+            </div>
+
+            {/* Metrics */}
+            <div className="space-y-3">
+              <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700">
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+                  Time to Resolution
+                </div>
+                <div className="text-3xl font-bold text-slate-100 font-mono">
+                  {currentTick || 0} <span className="text-lg text-slate-400">ticks</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700">
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+                  Status
+                </div>
+                <div className="text-xl font-bold text-emerald-400">
+                  RECOVERED
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="w-full px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-emerald-500/20"
+            >
+              Close Panel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
         <h2 className="text-xl font-bold text-slate-100">Node Details</h2>

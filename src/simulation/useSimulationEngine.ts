@@ -20,6 +20,7 @@ type SimulationAction =
   | { type: 'RESUME_SIMULATION' }
   | { type: 'STOP_SIMULATION' }
   | { type: 'TICK_UPDATE'; payload: Partial<SimulationState> }
+  | { type: 'USER_ACTION_DISPATCHED'; payload: { actionId: string; targetNodeId: string } }
   | { type: 'EXECUTE_ACTION'; payload: { nodeId: string; action: NodeAction } }
   | { type: 'UPDATE_NODE_HEALTH'; payload: { nodeId: string; health: number } }
   | { type: 'UPDATE_RUNTIME_STATE'; payload: RuntimeState }
@@ -136,6 +137,109 @@ function simulationReducer(
           ...action.payload
         }
       };
+
+    case 'USER_ACTION_DISPATCHED': {
+      if (!state.simulation || !state.scenario) {
+        return state;
+      }
+
+      const { actionId, targetNodeId } = action.payload;
+      let updatedSimulation = { ...state.simulation };
+
+      // Handle specific actions that affect simulation state
+      if (actionId === 'enable_circuit_breaker') {
+        // Enable HPA (Horizontal Pod Autoscaler) as the fix
+        updatedSimulation.hpaEnabled = true;
+        updatedSimulation.ticksSinceHpaEnabled = 0;
+        
+        // Transition to INVESTIGATING state
+        if (updatedSimulation.runtimeState === 'MELTDOWN') {
+          updatedSimulation.runtimeState = 'INVESTIGATING';
+        }
+
+        // Apply immediate health improvement to the target node
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: Math.min(100, node.health + 15),
+              status: node.health + 15 >= 70 ? 'recovering' as const : node.status
+            };
+          }
+          return node;
+        });
+
+        // Award points for correct action
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+      } else if (actionId === 'scale_up') {
+        // Scale up action improves health
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: Math.min(100, node.health + 20),
+              status: node.health + 20 >= 70 ? 'recovering' as const : node.status
+            };
+          }
+          return node;
+        });
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+      } else if (actionId === 'investigate') {
+        // Investigation doesn't change health but transitions state
+        if (updatedSimulation.runtimeState === 'MELTDOWN') {
+          updatedSimulation.runtimeState = 'INVESTIGATING';
+        }
+        updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 2);
+      } else if (actionId === 'deploy_fix') {
+        // Deploy fix improves health significantly
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: Math.min(100, node.health + 30),
+              status: node.health + 30 >= 70 ? 'recovering' as const : node.status
+            };
+          }
+          return node;
+        });
+        
+        if (updatedSimulation.runtimeState === 'INVESTIGATING') {
+          updatedSimulation.runtimeState = 'FIX_DEPLOYING';
+        }
+        
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+      } else if (actionId === 'restart') {
+        // Restart improves health moderately
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: Math.min(100, node.health + 25),
+              status: node.health + 25 >= 70 ? 'recovering' as const : node.status
+            };
+          }
+          return node;
+        });
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+      } else {
+        // Other actions have minimal effect
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: Math.min(100, node.health + 10)
+            };
+          }
+          return node;
+        });
+        updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 3);
+      }
+
+      return {
+        ...state,
+        simulation: updatedSimulation
+      };
+    }
 
     case 'EXECUTE_ACTION': {
       if (!state.simulation || !state.scenario) {
@@ -276,16 +380,59 @@ export function useSimulationEngine() {
 
       // Register default tick handlers
       tickLoopRef.current.registerHandler((context) => {
-        // Apply pressure degradation
-        if (state.scenario && context.state.runtimeState === 'MELTDOWN') {
+        if (!state.scenario) return;
+
+        let updates: Partial<SimulationState> = {};
+
+        // Increment ticks since HPA enabled
+        if (context.state.hpaEnabled) {
+          updates.ticksSinceHpaEnabled = context.state.ticksSinceHpaEnabled + 1;
+        }
+
+        // Apply pressure degradation during MELTDOWN
+        if (context.state.runtimeState === 'MELTDOWN') {
           const degradationRate = state.scenario.pressure.escalationRate;
           const updatedNodes = context.state.nodes.map(node => ({
             ...node,
-            health: Math.max(0, node.health - degradationRate * 10)
+            health: Math.max(0, node.health - degradationRate * 10),
+            status: node.health - degradationRate * 10 < 30 ? 'failed' as const :
+                    node.health - degradationRate * 10 < 70 ? 'degraded' as const : node.status
           }));
-
-          return { nodes: updatedNodes };
+          updates.nodes = updatedNodes;
         }
+
+        // Apply recovery during FIX_DEPLOYING
+        if (context.state.runtimeState === 'FIX_DEPLOYING' && context.state.hpaEnabled) {
+          const recoveryRate = state.scenario.pressure.recoveryRate;
+          const updatedNodes = context.state.nodes.map(node => ({
+            ...node,
+            health: Math.min(100, node.health + recoveryRate * 10),
+            status: node.health + recoveryRate * 10 >= 80 ? 'active' as const :
+                    node.health + recoveryRate * 10 >= 70 ? 'recovering' as const : node.status
+          }));
+          updates.nodes = updatedNodes;
+        }
+
+        // Check success conditions on every tick
+        if (context.state.hpaEnabled && context.state.ticksSinceHpaEnabled >= 5) {
+          // Success condition: HPA enabled and 5 ticks have passed
+          const allNodesHealthy = context.state.nodes.every(node => node.health >= 80);
+          
+          if (allNodesHealthy && context.state.runtimeState !== 'RECOVERED') {
+            updates.runtimeState = 'RECOVERED';
+            // Award perfect resolution bonus
+            updates.score = context.state.score + state.scenario.rewards.perfectResolutionBonus;
+            
+            // Dispatch recovery event
+            context.dispatcher.dispatch('INCIDENT_RESOLVED', 'info', {
+              tick: context.state.currentTick,
+              timeToResolve: context.state.currentTick,
+              finalScore: updates.score
+            });
+          }
+        }
+
+        return Object.keys(updates).length > 0 ? updates : undefined;
       });
     }
 
@@ -303,6 +450,18 @@ export function useSimulationEngine() {
     const unsubscribe = dispatcher.onAll((event: SimulationEvent) => {
       // Handle specific events that should trigger state updates
       switch (event.type) {
+        case 'USER_ACTION_DISPATCHED':
+          if (event.payload) {
+            dispatch({
+              type: 'USER_ACTION_DISPATCHED',
+              payload: {
+                actionId: event.payload.actionId as string,
+                targetNodeId: event.payload.targetNodeId as string
+              }
+            });
+          }
+          break;
+
         case 'TICK_END':
           if (event.payload && state.simulation) {
             dispatch({
@@ -317,6 +476,11 @@ export function useSimulationEngine() {
           break;
 
         case 'MAX_TICKS_REACHED':
+          dispatch({ type: 'STOP_SIMULATION' });
+          break;
+
+        case 'INCIDENT_RESOLVED':
+          // Stop simulation when incident is resolved
           dispatch({ type: 'STOP_SIMULATION' });
           break;
       }

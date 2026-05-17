@@ -3,6 +3,18 @@ import { RuntimeState } from '../core/types';
 import { Node } from '../schema/Scenario';
 
 /**
+ * State snapshot for replay functionality
+ */
+export interface StateSnapshot {
+  tick: number;
+  timestamp: number;
+  runtimeState: RuntimeState;
+  nodes: Node[];
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * Simulation state that gets updated each tick
  */
 export interface SimulationState {
@@ -13,6 +25,9 @@ export interface SimulationState {
   isRunning: boolean;
   startTime: number;
   lastTickTime: number;
+  snapshotLog: StateSnapshot[];
+  hpaEnabled: boolean;
+  ticksSinceHpaEnabled: number;
 }
 
 /**
@@ -111,6 +126,20 @@ export class SimulationTickLoop {
     // Update tick counter and timestamp
     updatedState.currentTick += 1;
     updatedState.lastTickTime = now;
+
+    // Capture state snapshot for replay
+    const snapshot: StateSnapshot = {
+      tick: updatedState.currentTick,
+      timestamp: now,
+      runtimeState: updatedState.runtimeState,
+      nodes: JSON.parse(JSON.stringify(updatedState.nodes)), // Deep clone
+      score: updatedState.score,
+      metadata: {
+        hpaEnabled: updatedState.hpaEnabled,
+        ticksSinceHpaEnabled: updatedState.ticksSinceHpaEnabled
+      }
+    };
+    updatedState.snapshotLog = [...updatedState.snapshotLog, snapshot];
 
     // Check if max ticks reached
     if (updatedState.currentTick >= this.maxTicks) {
@@ -256,7 +285,10 @@ export function createInitialSimulationState(
     score: 0,
     isRunning: false,
     startTime: Date.now(),
-    lastTickTime: Date.now()
+    lastTickTime: Date.now(),
+    snapshotLog: [],
+    hpaEnabled: false,
+    ticksSinceHpaEnabled: 0
   };
 }
 

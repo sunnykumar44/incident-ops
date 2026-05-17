@@ -209,6 +209,8 @@ export default function Home() {
           <ActionPanel
             selectedNode={selectedNode}
             onClose={handleClosePanel}
+            runtimeState={simulation.runtimeState}
+            currentTick={simulation.currentTick}
           />
         )}
       </main>
