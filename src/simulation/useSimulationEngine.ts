@@ -158,6 +158,15 @@ function simulationReducer(
       let updatedSimulation = { ...state.simulation };
       const timeline = [...updatedSimulation.incidentTimeline];
 
+      // Add immediate timeline entry with timestamp
+      const timestamp = new Date().toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      timeline.push(`[${timestamp}] ⚡ Action Dispatched: ${actionId.replace(/_/g, ' ')}`);
+
       // Handle specific actions that affect simulation state
       if (actionId === 'enable_circuit_breaker') {
         // Enable HPA (Horizontal Pod Autoscaler) as the fix

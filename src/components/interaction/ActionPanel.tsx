@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Node as SimulationNode } from '@/schema/Scenario';
 import { globalEventDispatcher } from '@/core/EventDispatcher';
 import { RuntimeState } from '@/core/types';
@@ -48,15 +50,34 @@ function getHealthColor(health: number): string {
  * Dark-themed right-side panel for node investigation and repair actions
  */
 export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick, incidentTimeline = [] }: ActionPanelProps) {
+  // Track loading and success states for each action button
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [successAction, setSuccessAction] = useState<string | null>(null);
+
   /**
-   * Handle action button click
+   * Handle action button click with tactile feedback
    * Dispatches USER_ACTION_DISPATCHED event without mutating state
    */
   const handleActionClick = (actionId: string) => {
+    // Set loading state
+    setLoadingAction(actionId);
+    
+    // Dispatch the action
     globalEventDispatcher.dispatch('USER_ACTION_DISPATCHED', 'info', {
       actionId,
       targetNodeId: selectedNode.id
     });
+    
+    // Show success flash after 300ms
+    setTimeout(() => {
+      setLoadingAction(null);
+      setSuccessAction(actionId);
+      
+      // Clear success state after 1 second
+      setTimeout(() => {
+        setSuccessAction(null);
+      }, 1000);
+    }, 300);
   };
 
   // Check if incident is resolved
@@ -286,20 +307,50 @@ export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick, 
                 No actions available for this node
               </div>
             ) : (
-              selectedNode.availableActions.map((action) => (
-                <button
-                  key={action}
-                  onClick={() => handleActionClick(action)}
-                  className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg border border-slate-600 hover:border-slate-500 transition-all duration-200 text-left flex items-center justify-between group cursor-pointer pointer-events-auto"
-                >
-                  <span className="capitalize">
-                    {action.replace(/_/g, ' ')}
-                  </span>
-                  <span className="text-slate-500 group-hover:text-slate-400 transition-colors">
-                    →
-                  </span>
-                </button>
-              ))
+              selectedNode.availableActions.map((action) => {
+                const isLoading = loadingAction === action;
+                const isSuccess = successAction === action;
+                const isDisabled = loadingAction !== null || successAction !== null;
+                
+                return (
+                  <motion.button
+                    key={action}
+                    onClick={() => !isDisabled && handleActionClick(action)}
+                    disabled={isDisabled}
+                    whileTap={{ scale: isDisabled ? 1 : 0.95 }}
+                    className={`
+                      w-full px-4 py-3 rounded-lg font-semibold text-left
+                      flex items-center justify-between group cursor-pointer pointer-events-auto
+                      transition-all duration-200
+                      ${isSuccess
+                        ? 'bg-emerald-600 border-2 border-emerald-400 text-white'
+                        : isLoading
+                        ? 'bg-slate-700 border border-slate-500 text-slate-300'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 hover:border-slate-500'
+                      }
+                      ${isDisabled && !isSuccess && !isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
+                  >
+                    <span className="capitalize flex items-center gap-2">
+                      {isLoading && (
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
+                      {isSuccess && (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {isLoading ? 'Dispatching...' : isSuccess ? 'Dispatched!' : action.replace(/_/g, ' ')}
+                    </span>
+                    <span className={`transition-colors ${isSuccess ? 'text-emerald-200' : 'text-slate-500 group-hover:text-slate-400'}`}>
+                      {isSuccess ? '✓' : '→'}
+                    </span>
+                  </motion.button>
+                );
+              })
             )}
           </div>
         </div>
