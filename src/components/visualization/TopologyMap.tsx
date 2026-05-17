@@ -17,6 +17,13 @@ import { AgnosticNode, AgnosticNodeData } from './AgnosticNode';
 import { Node, Edge } from '@/schema/Scenario';
 
 /**
+ * Define nodeTypes outside component to prevent re-renders
+ */
+const nodeTypes: NodeTypes = {
+  agnosticNode: AgnosticNode
+};
+
+/**
  * Props for TopologyMap component
  */
 interface TopologyMapProps {
@@ -80,14 +87,6 @@ function convertToReactFlowEdges(edges: Edge[]): ReactFlowEdge[] {
  * Read-only React Flow visualization of cloud infrastructure topology
  */
 export function TopologyMap({ nodes, edges, className = '', onSelectNode }: TopologyMapProps) {
-  // Register custom node types
-  const nodeTypes: NodeTypes = useMemo(
-    () => ({
-      agnosticNode: AgnosticNode
-    }),
-    []
-  );
-
   // Convert schema data to React Flow format
   const reactFlowNodes = useMemo(
     () => convertToReactFlowNodes(nodes),
