@@ -110,7 +110,8 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
           p-4
           min-w-[200px]
           transition-all
-          duration-300
+          duration-500
+          ease-in-out
           hover:scale-105
         `}
       >
@@ -146,11 +147,14 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
               rounded
               text-xs
               font-medium
+              transition-all
+              duration-500
+              ease-in-out
               ${styles.statusBg}
               ${styles.statusText}
             `}
           >
-            <div className="w-2 h-2 rounded-full bg-current animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-current animate-pulse transition-all duration-500 ease-in-out" />
             {data.status.toUpperCase()}
           </div>
         </div>
@@ -165,7 +169,7 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
           </div>
           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
             <div
-              className={`h-full ${styles.healthBar} transition-all duration-500 rounded-full`}
+              className={`h-full ${styles.healthBar} transition-all duration-500 ease-in-out rounded-full`}
               style={{ width: `${data.health}%` }}
             />
           </div>
@@ -181,6 +185,9 @@ export const AgnosticNode = memo(({ data }: NodeProps<AgnosticNodeData>) => {
             opacity-20
             blur-xl
             -z-10
+            transition-all
+            duration-500
+            ease-in-out
           `}
         />
       </div>

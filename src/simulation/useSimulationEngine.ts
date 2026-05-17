@@ -396,32 +396,54 @@ export function useSimulationEngine() {
 
         let updates: Partial<SimulationState> = {};
 
+        // Generate realistic noise for metric oscillation (±2% variance)
+        const generateNoise = () => (Math.random() - 0.5) * 4;
+
+        // Calculate system health score with oscillation
+        const avgNodeHealth = context.state.nodes.reduce((sum, node) => sum + node.health, 0) / context.state.nodes.length;
+        const healthScore = Math.max(0, Math.min(100, Math.round(avgNodeHealth + generateNoise())));
+        updates.systemHealthScore = healthScore;
+
         // Increment ticks since HPA enabled
         if (context.state.hpaEnabled) {
           updates.ticksSinceHpaEnabled = context.state.ticksSinceHpaEnabled + 1;
         }
 
-        // Apply pressure degradation during MELTDOWN
+        // Apply pressure degradation during MELTDOWN with oscillation
         if (context.state.runtimeState === 'MELTDOWN') {
           const degradationRate = state.scenario.pressure.escalationRate;
-          const updatedNodes = context.state.nodes.map(node => ({
-            ...node,
-            health: Math.max(0, node.health - degradationRate * 10),
-            status: node.health - degradationRate * 10 < 30 ? 'failed' as const :
-                    node.health - degradationRate * 10 < 70 ? 'degraded' as const : node.status
-          }));
+          const updatedNodes = context.state.nodes.map(node => {
+            // Add realistic oscillation to health degradation
+            const baseDegrade = degradationRate * 10;
+            const oscillation = generateNoise();
+            const newHealth = Math.max(0, node.health - baseDegrade + oscillation);
+            
+            return {
+              ...node,
+              health: newHealth,
+              status: newHealth < 30 ? 'failed' as const :
+                      newHealth < 70 ? 'degraded' as const : node.status
+            };
+          });
           updates.nodes = updatedNodes;
         }
 
-        // Apply recovery during FIX_DEPLOYING
+        // Apply recovery during FIX_DEPLOYING with oscillation
         if (context.state.runtimeState === 'FIX_DEPLOYING' && context.state.hpaEnabled) {
           const recoveryRate = state.scenario.pressure.recoveryRate;
-          const updatedNodes = context.state.nodes.map(node => ({
-            ...node,
-            health: Math.min(100, node.health + recoveryRate * 10),
-            status: node.health + recoveryRate * 10 >= 80 ? 'active' as const :
-                    node.health + recoveryRate * 10 >= 70 ? 'recovering' as const : node.status
-          }));
+          const updatedNodes = context.state.nodes.map(node => {
+            // Add realistic oscillation to health recovery
+            const baseRecovery = recoveryRate * 10;
+            const oscillation = generateNoise();
+            const newHealth = Math.min(100, node.health + baseRecovery + oscillation);
+            
+            return {
+              ...node,
+              health: newHealth,
+              status: newHealth >= 80 ? 'active' as const :
+                      newHealth >= 70 ? 'recovering' as const : node.status
+            };
+          });
           updates.nodes = updatedNodes;
         }
 

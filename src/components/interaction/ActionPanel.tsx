@@ -62,8 +62,43 @@ export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick, 
   // Check if incident is resolved
   const isResolved = runtimeState === 'RECOVERED';
 
+  // Get health score for alert escalation
+  const healthScore = selectedNode.health;
+
   return (
     <div className="absolute top-0 right-0 h-full w-96 bg-slate-900 border-l border-slate-700 shadow-2xl flex flex-col z-10">
+      {/* Critical Alert Banner */}
+      {!isResolved && healthScore < 20 && (
+        <div className="bg-red-600 border-b-2 border-red-400 px-4 py-3 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="animate-bounce">
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-white font-bold text-sm">CRITICAL NODE FAILURE</div>
+              <div className="text-red-100 text-xs">Immediate action required</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning Alert Banner */}
+      {!isResolved && healthScore >= 20 && healthScore < 50 && (
+        <div className="bg-amber-600 border-b-2 border-amber-400 px-4 py-3 animate-pulse">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <div className="text-white font-bold text-sm">NODE DEGRADED</div>
+              <div className="text-amber-100 text-xs">Performance impacted</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Incident Resolved Overlay */}
       {isResolved && (
         <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm z-50 flex items-center justify-center">
