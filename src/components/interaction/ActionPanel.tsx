@@ -12,6 +12,7 @@ interface ActionPanelProps {
   onClose: () => void;
   runtimeState?: RuntimeState;
   currentTick?: number;
+  incidentTimeline?: string[];
 }
 
 /**
@@ -46,7 +47,7 @@ function getHealthColor(health: number): string {
  * ActionPanel Component
  * Dark-themed right-side panel for node investigation and repair actions
  */
-export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick }: ActionPanelProps) {
+export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick, incidentTimeline = [] }: ActionPanelProps) {
   /**
    * Handle action button click
    * Dispatches USER_ACTION_DISPATCHED event without mutating state
@@ -116,6 +117,23 @@ export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick }
                 </div>
               </div>
             </div>
+
+            {/* Incident Timeline */}
+            {incidentTimeline.length > 0 && (
+              <div className="bg-slate-800/50 rounded-lg px-6 py-4 border border-slate-700 max-h-64 overflow-y-auto">
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-3">
+                  Incident Timeline
+                </div>
+                <ul className="space-y-2">
+                  {incidentTimeline.map((entry, index) => (
+                    <li key={index} className="text-sm text-slate-300 flex items-start gap-2">
+                      <span className="text-slate-600 mt-1">•</span>
+                      <span>{entry}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Close Button */}
             <button

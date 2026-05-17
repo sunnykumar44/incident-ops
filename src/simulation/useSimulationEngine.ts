@@ -145,16 +145,19 @@ function simulationReducer(
 
       const { actionId, targetNodeId } = action.payload;
       let updatedSimulation = { ...state.simulation };
+      const timeline = [...updatedSimulation.incidentTimeline];
 
       // Handle specific actions that affect simulation state
       if (actionId === 'enable_circuit_breaker') {
         // Enable HPA (Horizontal Pod Autoscaler) as the fix
         updatedSimulation.hpaEnabled = true;
         updatedSimulation.ticksSinceHpaEnabled = 0;
+        updatedSimulation.stableTicks = 0; // Reset stable ticks
         
         // Transition to INVESTIGATING state
         if (updatedSimulation.runtimeState === 'MELTDOWN') {
           updatedSimulation.runtimeState = 'INVESTIGATING';
+          timeline.push('🔍 Circuit breaker enabled - Beginning investigation phase');
         }
 
         // Apply immediate health improvement to the target node
@@ -171,6 +174,7 @@ function simulationReducer(
 
         // Award points for correct action
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`✅ Autoscaling enabled on ${targetNodeId}`);
       } else if (actionId === 'scale_up') {
         // Scale up action improves health
         updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
@@ -184,10 +188,12 @@ function simulationReducer(
           return node;
         });
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`⬆️ Scaled up ${targetNodeId}`);
       } else if (actionId === 'investigate') {
         // Investigation doesn't change health but transitions state
         if (updatedSimulation.runtimeState === 'MELTDOWN') {
           updatedSimulation.runtimeState = 'INVESTIGATING';
+          timeline.push('🔍 Investigation initiated - Analyzing system metrics');
         }
         updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 2);
       } else if (actionId === 'deploy_fix') {
@@ -205,9 +211,11 @@ function simulationReducer(
         
         if (updatedSimulation.runtimeState === 'INVESTIGATING') {
           updatedSimulation.runtimeState = 'FIX_DEPLOYING';
+          timeline.push('🚀 Fix deployment initiated');
         }
         
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`🔧 Deployed fix to ${targetNodeId}`);
       } else if (actionId === 'restart') {
         // Restart improves health moderately
         updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
@@ -221,6 +229,7 @@ function simulationReducer(
           return node;
         });
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`🔄 Restarted ${targetNodeId}`);
       } else {
         // Other actions have minimal effect
         updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
@@ -233,7 +242,10 @@ function simulationReducer(
           return node;
         });
         updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 3);
+        timeline.push(`⚙️ Action '${actionId}' executed on ${targetNodeId}`);
       }
+
+      updatedSimulation.incidentTimeline = timeline;
 
       return {
         ...state,

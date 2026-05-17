@@ -140,6 +140,21 @@ export default function Home() {
             {simulation.runtimeState}
           </div>
 
+          {/* System Health Score */}
+          <div className="px-4 py-2 bg-slate-800 rounded-lg border border-slate-700">
+            <div className="text-xs text-slate-500">System Health</div>
+            <div className="flex items-center gap-2">
+              <div className="text-lg font-mono font-bold text-slate-200">
+                {simulation.systemHealthScore}%
+              </div>
+              <div className={`w-2 h-2 rounded-full ${
+                simulation.systemHealthScore >= 80 ? 'bg-emerald-500' :
+                simulation.systemHealthScore >= 50 ? 'bg-amber-500' :
+                'bg-red-500'
+              }`} />
+            </div>
+          </div>
+
           {/* Tick Counter */}
           <div className="px-4 py-2 bg-slate-800 rounded-lg border border-slate-700">
             <div className="text-xs text-slate-500">Tick</div>
@@ -211,6 +226,7 @@ export default function Home() {
             onClose={handleClosePanel}
             runtimeState={simulation.runtimeState}
             currentTick={simulation.currentTick}
+            incidentTimeline={simulation.incidentTimeline}
           />
         )}
       </main>

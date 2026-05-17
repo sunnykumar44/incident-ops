@@ -28,6 +28,9 @@ export interface SimulationState {
   snapshotLog: StateSnapshot[];
   hpaEnabled: boolean;
   ticksSinceHpaEnabled: number;
+  systemHealthScore: number;
+  stableTicks: number;
+  incidentTimeline: string[];
 }
 
 /**
@@ -278,6 +281,15 @@ export function createInitialSimulationState(
   nodes: Node[],
   runtimeState: RuntimeState = 'HEALTHY'
 ): SimulationState {
+  const initialTimeline: string[] = [];
+  
+  // Add initial timeline entry based on state
+  if (runtimeState === 'MELTDOWN') {
+    initialTimeline.push('🚨 Traffic spike detected - System entering meltdown state');
+  } else if (runtimeState === 'HEALTHY') {
+    initialTimeline.push('✅ System initialized in healthy state');
+  }
+
   return {
     currentTick: 0,
     runtimeState,
@@ -288,7 +300,10 @@ export function createInitialSimulationState(
     lastTickTime: Date.now(),
     snapshotLog: [],
     hpaEnabled: false,
-    ticksSinceHpaEnabled: 0
+    ticksSinceHpaEnabled: 0,
+    systemHealthScore: 100,
+    stableTicks: 0,
+    incidentTimeline: initialTimeline
   };
 }
 
