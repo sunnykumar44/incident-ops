@@ -1,0 +1,194 @@
+{
+  "version": "1.0.0",
+  "name": "GKE Traffic Meltdown",
+  "description": "A sudden traffic spike overwhelms your Google Kubernetes Engine cluster, causing cascading failures across your microservices architecture. You must identify the bottleneck, implement circuit breakers, and scale resources before the entire system collapses.",
+  "difficulty": "intermediate",
+  "estimatedDuration": 15,
+  "topology": {
+    "nodes": [
+      {
+        "id": "load-balancer-1",
+        "label": "Cloud Load Balancer",
+        "provider": "GCP",
+        "serviceType": "LoadBalancer",
+        "status": "degraded",
+        "health": 65,
+        "availableActions": [
+          "increase_timeout",
+          "enable_circuit_breaker",
+          "investigate"
+        ],
+        "metadata": {
+          "region": "us-central1",
+          "requestsPerSecond": 15000,
+          "errorRate": 0.12
+        }
+      },
+      {
+        "id": "gke-cluster-1",
+        "label": "GKE Production Cluster",
+        "provider": "GCP",
+        "serviceType": "Kubernetes",
+        "status": "degraded",
+        "health": 55,
+        "availableActions": [
+          "scale_up",
+          "restart",
+          "investigate",
+          "deploy_fix"
+        ],
+        "metadata": {
+          "nodeCount": 5,
+          "podCount": 120,
+          "cpuUtilization": 0.89,
+          "memoryUtilization": 0.92
+        }
+      },
+      {
+        "id": "api-service-1",
+        "label": "API Gateway Service",
+        "provider": "GCP",
+        "serviceType": "Compute",
+        "status": "failed",
+        "health": 25,
+        "availableActions": [
+          "restart",
+          "scale_up",
+          "rollback",
+          "enable_circuit_breaker"
+        ],
+        "metadata": {
+          "replicas": 3,
+          "desiredReplicas": 10,
+          "responseTime": 8500,
+          "errorRate": 0.45
+        }
+      },
+      {
+        "id": "database-1",
+        "label": "Cloud SQL Database",
+        "provider": "GCP",
+        "serviceType": "Database",
+        "status": "degraded",
+        "health": 70,
+        "availableActions": [
+          "scale_up",
+          "investigate"
+        ],
+        "metadata": {
+          "connectionPoolSize": 100,
+          "activeConnections": 95,
+          "queryLatency": 450
+        }
+      },
+      {
+        "id": "cache-1",
+        "label": "Redis Cache",
+        "provider": "GCP",
+        "serviceType": "Cache",
+        "status": "active",
+        "health": 85,
+        "availableActions": [
+          "scale_up",
+          "investigate"
+        ],
+        "metadata": {
+          "hitRate": 0.78,
+          "memoryUsage": 0.65,
+          "evictionRate": 0.02
+        }
+      },
+      {
+        "id": "monitoring-1",
+        "label": "Cloud Monitoring",
+        "provider": "GCP",
+        "serviceType": "Monitoring",
+        "status": "active",
+        "health": 95,
+        "availableActions": [
+          "investigate"
+        ],
+        "metadata": {
+          "alertsTriggered": 12,
+          "metricsCollected": 50000
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-1",
+        "source": "load-balancer-1",
+        "target": "gke-cluster-1",
+        "label": "Routes traffic"
+      },
+      {
+        "id": "edge-2",
+        "source": "gke-cluster-1",
+        "target": "api-service-1",
+        "label": "Hosts pods"
+      },
+      {
+        "id": "edge-3",
+        "source": "api-service-1",
+        "target": "database-1",
+        "label": "Queries data"
+      },
+      {
+        "id": "edge-4",
+        "source": "api-service-1",
+        "target": "cache-1",
+        "label": "Caches responses"
+      },
+      {
+        "id": "edge-5",
+        "source": "monitoring-1",
+        "target": "gke-cluster-1",
+        "label": "Monitors"
+      },
+      {
+        "id": "edge-6",
+        "source": "monitoring-1",
+        "target": "api-service-1",
+        "label": "Monitors"
+      }
+    ]
+  },
+  "simulation": {
+    "tickInterval": 2000,
+    "maxTicks": 450,
+    "autoResolve": false,
+    "deterministicSeed": "gke-traffic-meltdown-2024"
+  },
+  "pressure": {
+    "initialDelay": 5000,
+    "escalationRate": 0.05,
+    "cascadeThreshold": 30,
+    "recoveryRate": 0.08
+  },
+  "rewards": {
+    "correctActionBonus": 100,
+    "incorrectActionPenalty": -50,
+    "timeToResolvePenalty": -2,
+    "cascadePreventionBonus": 200,
+    "perfectResolutionBonus": 500
+  },
+  "initialState": "MELTDOWN",
+  "learningObjectives": [
+    "Identify bottlenecks in distributed systems under load",
+    "Implement circuit breakers to prevent cascading failures",
+    "Scale Kubernetes resources effectively during incidents",
+    "Understand the relationship between load balancers, clusters, and services",
+    "Practice incident response prioritization",
+    "Learn to use monitoring data for root cause analysis"
+  ],
+  "tags": [
+    "kubernetes",
+    "gcp",
+    "traffic-spike",
+    "scaling",
+    "circuit-breaker",
+    "intermediate"
+  ],
+  "author": "IncidentOps Team",
+  "createdAt": "2024-01-15T10:00:00.000Z"
+}
