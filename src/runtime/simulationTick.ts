@@ -153,11 +153,18 @@ export class SimulationTickLoop {
       updatedState.isRunning = false;
     }
 
-    // Dispatch tick end event
+    // Dispatch tick end event with all updated state
     this.dispatcher.dispatch('TICK_END', 'info', {
       tick: updatedState.currentTick,
       runtimeState: updatedState.runtimeState,
-      score: updatedState.score
+      score: updatedState.score,
+      systemHealthScore: updatedState.systemHealthScore,
+      nodes: updatedState.nodes,
+      stableTicks: updatedState.stableTicks,
+      ticksSinceHpaEnabled: updatedState.ticksSinceHpaEnabled,
+      hpaEnabled: updatedState.hpaEnabled,
+      incidentTimeline: updatedState.incidentTimeline,
+      snapshotLog: updatedState.snapshotLog
     });
 
     return updatedState;

@@ -498,13 +498,39 @@ export function useSimulationEngine() {
 
         case 'TICK_END':
           if (event.payload && state.simulation) {
+            // Extract all updated fields from the payload
+            const updates: Partial<SimulationState> = {
+              currentTick: event.payload.tick as number,
+              runtimeState: event.payload.runtimeState as RuntimeState,
+              score: event.payload.score as number
+            };
+            
+            // Include all other fields that may have been updated
+            if (event.payload.systemHealthScore !== undefined) {
+              updates.systemHealthScore = event.payload.systemHealthScore as number;
+            }
+            if (event.payload.nodes) {
+              updates.nodes = event.payload.nodes as typeof state.simulation.nodes;
+            }
+            if (event.payload.stableTicks !== undefined) {
+              updates.stableTicks = event.payload.stableTicks as number;
+            }
+            if (event.payload.ticksSinceHpaEnabled !== undefined) {
+              updates.ticksSinceHpaEnabled = event.payload.ticksSinceHpaEnabled as number;
+            }
+            if (event.payload.hpaEnabled !== undefined) {
+              updates.hpaEnabled = event.payload.hpaEnabled as boolean;
+            }
+            if (event.payload.incidentTimeline) {
+              updates.incidentTimeline = event.payload.incidentTimeline as string[];
+            }
+            if (event.payload.snapshotLog) {
+              updates.snapshotLog = event.payload.snapshotLog as typeof state.simulation.snapshotLog;
+            }
+            
             dispatch({
               type: 'TICK_UPDATE',
-              payload: {
-                currentTick: event.payload.tick as number,
-                runtimeState: event.payload.runtimeState as RuntimeState,
-                score: event.payload.score as number
-              }
+              payload: updates
             });
           }
           break;
