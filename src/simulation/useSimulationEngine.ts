@@ -477,6 +477,29 @@ export function useSimulationEngine() {
     };
   }, [state.scenario]);
 
+  // Start/stop tick loop based on simulation running state
+  useEffect(() => {
+    if (!state.simulation || !tickLoopRef.current) {
+      return;
+    }
+
+    if (state.simulation.isRunning && !state.isPaused) {
+      // Start the tick loop with current simulation state
+      tickLoopRef.current.start(state.simulation, (updatedState) => {
+        dispatch({ type: 'TICK_UPDATE', payload: updatedState });
+      });
+    } else {
+      // Stop the tick loop
+      tickLoopRef.current.stop();
+    }
+
+    return () => {
+      if (tickLoopRef.current) {
+        tickLoopRef.current.stop();
+      }
+    };
+  }, [state.simulation?.isRunning, state.isPaused]);
+
   // Subscribe to events and update state
   useEffect(() => {
     const dispatcher = dispatcherRef.current;
@@ -562,39 +585,34 @@ export function useSimulationEngine() {
 
   // Start simulation
   const startSimulation = useCallback(() => {
-    if (!state.simulation || !tickLoopRef.current) {
+    if (!state.simulation) {
       return;
     }
 
     dispatch({ type: 'START_SIMULATION' });
-    
-    tickLoopRef.current.start(state.simulation, (updatedState) => {
-      dispatch({ type: 'TICK_UPDATE', payload: updatedState });
-    });
+    // Tick loop will be started by the useEffect watching isRunning
   }, [state.simulation]);
 
   // Pause simulation
   const pauseSimulation = useCallback(() => {
     dispatch({ type: 'PAUSE_SIMULATION' });
-    tickLoopRef.current?.pause();
+    // Tick loop will be stopped by the useEffect watching isPaused
   }, []);
 
   // Resume simulation
   const resumeSimulation = useCallback(() => {
-    if (!state.simulation || !tickLoopRef.current) {
+    if (!state.simulation) {
       return;
     }
 
     dispatch({ type: 'RESUME_SIMULATION' });
-    tickLoopRef.current.resume(state.simulation, (updatedState) => {
-      dispatch({ type: 'TICK_UPDATE', payload: updatedState });
-    });
+    // Tick loop will be restarted by the useEffect watching isPaused
   }, [state.simulation]);
 
   // Stop simulation
   const stopSimulation = useCallback(() => {
     dispatch({ type: 'STOP_SIMULATION' });
-    tickLoopRef.current?.stop();
+    // Tick loop will be stopped by the useEffect watching isRunning
   }, []);
 
   // Execute action on a node
