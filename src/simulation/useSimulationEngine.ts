@@ -130,11 +130,22 @@ function simulationReducer(
       if (!state.simulation) {
         return state;
       }
+      // Deep clone nodes array to ensure React detects changes
+      const updatedPayload = { ...action.payload };
+      if (updatedPayload.nodes) {
+        updatedPayload.nodes = updatedPayload.nodes.map(node => ({ ...node }));
+      }
+      if (updatedPayload.incidentTimeline) {
+        updatedPayload.incidentTimeline = [...updatedPayload.incidentTimeline];
+      }
+      if (updatedPayload.snapshotLog) {
+        updatedPayload.snapshotLog = [...updatedPayload.snapshotLog];
+      }
       return {
         ...state,
         simulation: {
           ...state.simulation,
-          ...action.payload
+          ...updatedPayload
         }
       };
 
@@ -246,6 +257,9 @@ function simulationReducer(
       }
 
       updatedSimulation.incidentTimeline = timeline;
+      
+      // Deep clone nodes to ensure React detects changes
+      updatedSimulation.nodes = updatedSimulation.nodes.map(node => ({ ...node }));
 
       return {
         ...state,
