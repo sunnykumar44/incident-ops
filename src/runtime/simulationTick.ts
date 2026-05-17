@@ -31,6 +31,7 @@ export interface SimulationState {
   systemHealthScore: number;
   stableTicks: number;
   incidentTimeline: string[];
+  fixDeployed: boolean;
 }
 
 /**
@@ -310,7 +311,8 @@ export function createInitialSimulationState(
     ticksSinceHpaEnabled: 0,
     systemHealthScore: 100,
     stableTicks: 0,
-    incidentTimeline: initialTimeline
+    incidentTimeline: initialTimeline,
+    fixDeployed: false
   };
 }
 

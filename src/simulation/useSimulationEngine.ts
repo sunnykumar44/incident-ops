@@ -158,18 +158,87 @@ function simulationReducer(
       let updatedSimulation = { ...state.simulation };
       const timeline = [...updatedSimulation.incidentTimeline];
 
-      // Add immediate timeline entry with timestamp
+      // Add immediate timeline entry with timestamp and action-specific message
       const timestamp = new Date().toLocaleTimeString('en-US', {
         hour12: false,
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
       });
-      timeline.push(`[${timestamp}] ⚡ Action Dispatched: ${actionId.replace(/_/g, ' ')}`);
+      
+      // Get target node name for better messages
+      const targetNode = updatedSimulation.nodes.find(n => n.id === targetNodeId);
+      const nodeName = targetNode?.label || targetNodeId;
 
       // Handle specific actions that affect simulation state
-      if (actionId === 'enable_circuit_breaker') {
+      if (actionId === 'restart') {
+        // Restart: Immediately set health to 100 and status to active
+        timeline.push(`[${timestamp}] 🔄 Initializing cold restart of ${nodeName}...`);
+        
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            return {
+              ...node,
+              health: 100,
+              status: 'active' as const
+            };
+          }
+          return node;
+        });
+        
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`✅ ${nodeName} successfully restarted and restored to full health`);
+      } else if (actionId === 'scale_up') {
+        // Scale up: Increase health by 30% and update metadata
+        timeline.push(`[${timestamp}] ⚡ Scaling up ${nodeName}...`);
+        
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            const newHealth = Math.min(100, node.health + 30);
+            return {
+              ...node,
+              health: newHealth,
+              status: newHealth >= 70 ? 'recovering' as const : node.status,
+              metadata: {
+                ...node.metadata,
+                podCount: ((node.metadata?.podCount as number) || 3) + 2,
+                lastScaled: Date.now()
+              }
+            };
+          }
+          return node;
+        });
+        
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`⬆️ ${nodeName} scaled up successfully - Added 2 pods`);
+      } else if (actionId === 'deploy_fix') {
+        // Deploy fix: Set fixDeployed flag and improve health
+        timeline.push(`[${timestamp}] 🚀 Deploying fix to ${nodeName}...`);
+        
+        updatedSimulation.fixDeployed = true;
+        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
+          if (node.id === targetNodeId) {
+            const newHealth = Math.min(100, node.health + 30);
+            return {
+              ...node,
+              health: newHealth,
+              status: newHealth >= 70 ? 'recovering' as const : node.status
+            };
+          }
+          return node;
+        });
+        
+        if (updatedSimulation.runtimeState === 'INVESTIGATING') {
+          updatedSimulation.runtimeState = 'FIX_DEPLOYING';
+          timeline.push('🔧 Fix deployment initiated - System entering recovery phase');
+        }
+        
+        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
+        timeline.push(`✅ Fix deployed to ${nodeName} - Recovery process started`);
+      } else if (actionId === 'enable_circuit_breaker') {
         // Enable HPA (Horizontal Pod Autoscaler) as the fix
+        timeline.push(`[${timestamp}] 🔍 Enabling circuit breaker on ${nodeName}...`);
+        
         updatedSimulation.hpaEnabled = true;
         updatedSimulation.ticksSinceHpaEnabled = 0;
         updatedSimulation.stableTicks = 0; // Reset stable ticks
@@ -194,64 +263,21 @@ function simulationReducer(
 
         // Award points for correct action
         updatedSimulation.score += state.scenario.rewards.correctActionBonus;
-        timeline.push(`✅ Autoscaling enabled on ${targetNodeId}`);
-      } else if (actionId === 'scale_up') {
-        // Scale up action improves health
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
-          if (node.id === targetNodeId) {
-            return {
-              ...node,
-              health: Math.min(100, node.health + 20),
-              status: node.health + 20 >= 70 ? 'recovering' as const : node.status
-            };
-          }
-          return node;
-        });
-        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
-        timeline.push(`⬆️ Scaled up ${targetNodeId}`);
+        timeline.push(`✅ Autoscaling enabled on ${nodeName}`);
       } else if (actionId === 'investigate') {
         // Investigation doesn't change health but transitions state
+        timeline.push(`[${timestamp}] 🔍 Investigating ${nodeName} - Analyzing system metrics...`);
+        
         if (updatedSimulation.runtimeState === 'MELTDOWN') {
           updatedSimulation.runtimeState = 'INVESTIGATING';
-          timeline.push('🔍 Investigation initiated - Analyzing system metrics');
+          timeline.push('📊 Investigation initiated - Gathering telemetry data');
         }
         updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 2);
-      } else if (actionId === 'deploy_fix') {
-        // Deploy fix improves health significantly
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
-          if (node.id === targetNodeId) {
-            return {
-              ...node,
-              health: Math.min(100, node.health + 30),
-              status: node.health + 30 >= 70 ? 'recovering' as const : node.status
-            };
-          }
-          return node;
-        });
-        
-        if (updatedSimulation.runtimeState === 'INVESTIGATING') {
-          updatedSimulation.runtimeState = 'FIX_DEPLOYING';
-          timeline.push('🚀 Fix deployment initiated');
-        }
-        
-        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
-        timeline.push(`🔧 Deployed fix to ${targetNodeId}`);
-      } else if (actionId === 'restart') {
-        // Restart improves health moderately
-        updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
-          if (node.id === targetNodeId) {
-            return {
-              ...node,
-              health: Math.min(100, node.health + 25),
-              status: node.health + 25 >= 70 ? 'recovering' as const : node.status
-            };
-          }
-          return node;
-        });
-        updatedSimulation.score += state.scenario.rewards.correctActionBonus;
-        timeline.push(`🔄 Restarted ${targetNodeId}`);
+        timeline.push(`✅ Investigation complete for ${nodeName}`);
       } else {
         // Other actions have minimal effect
+        timeline.push(`[${timestamp}] ⚙️ Executing ${actionId.replace(/_/g, ' ')} on ${nodeName}...`);
+        
         updatedSimulation.nodes = updatedSimulation.nodes.map(node => {
           if (node.id === targetNodeId) {
             return {
@@ -262,7 +288,7 @@ function simulationReducer(
           return node;
         });
         updatedSimulation.score += Math.floor(state.scenario.rewards.correctActionBonus / 3);
-        timeline.push(`⚙️ Action '${actionId}' executed on ${targetNodeId}`);
+        timeline.push(`✅ Action completed on ${nodeName}`);
       }
 
       updatedSimulation.incidentTimeline = timeline;
@@ -451,8 +477,30 @@ export function useSimulationEngine() {
           updates.nodes = updatedNodes;
         }
 
-        // Apply recovery during FIX_DEPLOYING with oscillation
-        if (context.state.runtimeState === 'FIX_DEPLOYING' && context.state.hpaEnabled) {
+        // Apply recovery when fix is deployed - increases ALL nodes' health by 10% per tick
+        if (context.state.fixDeployed) {
+          const updatedNodes = context.state.nodes.map(node => {
+            // Add 10% health recovery with realistic oscillation
+            const baseRecovery = 10;
+            const oscillation = generateNoise();
+            const newHealth = Math.min(100, node.health + baseRecovery + oscillation);
+            
+            return {
+              ...node,
+              health: newHealth,
+              status: newHealth >= 80 ? 'active' as const :
+                      newHealth >= 70 ? 'recovering' as const : node.status
+            };
+          });
+          updates.nodes = updatedNodes;
+          
+          // Transition to FIX_DEPLOYING state if not already there
+          if (context.state.runtimeState === 'INVESTIGATING') {
+            updates.runtimeState = 'FIX_DEPLOYING';
+          }
+        }
+        // Apply recovery during FIX_DEPLOYING with HPA enabled (legacy path)
+        else if (context.state.runtimeState === 'FIX_DEPLOYING' && context.state.hpaEnabled) {
           const recoveryRate = state.scenario.pressure.recoveryRate;
           const updatedNodes = context.state.nodes.map(node => {
             // Add realistic oscillation to health recovery
@@ -471,14 +519,22 @@ export function useSimulationEngine() {
         }
 
         // Check success conditions on every tick
-        if (context.state.hpaEnabled && context.state.ticksSinceHpaEnabled >= 5) {
-          // Success condition: HPA enabled and 5 ticks have passed
-          const allNodesHealthy = context.state.nodes.every(node => node.health >= 80);
+        const allNodesHealthy = (updates.nodes || context.state.nodes).every(node => node.health >= 80);
+        
+        if (allNodesHealthy) {
+          // Increment stable ticks counter
+          updates.stableTicks = (context.state.stableTicks || 0) + 1;
           
-          if (allNodesHealthy && context.state.runtimeState !== 'RECOVERED') {
+          // Require 5 consecutive stable ticks before declaring RECOVERED
+          if (updates.stableTicks >= 5 && context.state.runtimeState !== 'RECOVERED') {
             updates.runtimeState = 'RECOVERED';
             // Award perfect resolution bonus
             updates.score = context.state.score + state.scenario.rewards.perfectResolutionBonus;
+            
+            // Add timeline entry
+            const timeline = [...context.state.incidentTimeline];
+            timeline.push(`🎉 Incident resolved after ${context.state.currentTick} ticks - All systems stable`);
+            updates.incidentTimeline = timeline;
             
             // Dispatch recovery event
             context.dispatcher.dispatch('INCIDENT_RESOLVED', 'info', {
@@ -487,6 +543,9 @@ export function useSimulationEngine() {
               finalScore: updates.score
             });
           }
+        } else {
+          // Reset stable ticks if any node drops below 80%
+          updates.stableTicks = 0;
         }
 
         return Object.keys(updates).length > 0 ? updates : undefined;
