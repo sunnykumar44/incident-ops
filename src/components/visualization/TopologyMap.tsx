@@ -23,6 +23,7 @@ interface TopologyMapProps {
   nodes: Node[];
   edges: Edge[];
   className?: string;
+  onSelectNode?: (node: Node) => void;
 }
 
 /**
@@ -78,7 +79,7 @@ function convertToReactFlowEdges(edges: Edge[]): ReactFlowEdge[] {
  * TopologyMap Component
  * Read-only React Flow visualization of cloud infrastructure topology
  */
-export function TopologyMap({ nodes, edges, className = '' }: TopologyMapProps) {
+export function TopologyMap({ nodes, edges, className = '', onSelectNode }: TopologyMapProps) {
   // Register custom node types
   const nodeTypes: NodeTypes = useMemo(
     () => ({
@@ -103,6 +104,20 @@ export function TopologyMap({ nodes, edges, className = '' }: TopologyMapProps) 
     // Nodes are read-only, no action needed
   }, []);
 
+  // Handle node click to select node
+  const onNodeClick = useCallback(
+    (_event: React.MouseEvent, node: ReactFlowNode) => {
+      if (onSelectNode) {
+        // Find the original node from the schema
+        const originalNode = nodes.find(n => n.id === node.id);
+        if (originalNode) {
+          onSelectNode(originalNode);
+        }
+      }
+    },
+    [nodes, onSelectNode]
+  );
+
   return (
     <div className={`w-full h-full bg-slate-950 ${className}`}>
       <ReactFlow
@@ -110,6 +125,7 @@ export function TopologyMap({ nodes, edges, className = '' }: TopologyMapProps) 
         edges={reactFlowEdges}
         nodeTypes={nodeTypes}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
         nodesDraggable={true}
         nodesConnectable={false}
         elementsSelectable={true}

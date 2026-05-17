@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { TopologyMap } from '@/components/visualization/TopologyMap';
+import { ActionPanel } from '@/components/interaction/ActionPanel';
 import { useSimulationEngine } from '@/simulation/useSimulationEngine';
-import { ScenarioSchema } from '@/schema/Scenario';
+import { ScenarioSchema, Node } from '@/schema/Scenario';
 import trafficMeltdownScenario from '@/cartridges/v1.0.0-traffic-meltdown.json';
 
 /**
@@ -25,6 +26,9 @@ export default function Home() {
     resetSimulation,
     dispatcher
   } = useSimulationEngine();
+
+  // Local state for selected node
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
   // Load the scenario on mount
   useEffect(() => {
@@ -70,6 +74,16 @@ export default function Home() {
       default:
         return 'text-slate-400 bg-slate-500/20 border-slate-500';
     }
+  };
+
+  // Handle node selection
+  const handleSelectNode = (node: Node) => {
+    setSelectedNode(node);
+  };
+
+  // Handle closing the action panel
+  const handleClosePanel = () => {
+    setSelectedNode(null);
   };
 
   if (!isLoaded || !scenario || !simulation) {
@@ -187,7 +201,16 @@ export default function Home() {
           nodes={simulation.nodes}
           edges={scenario.topology.edges}
           className="absolute inset-0"
+          onSelectNode={handleSelectNode}
         />
+
+        {/* Action Panel - conditionally rendered when a node is selected */}
+        {selectedNode && (
+          <ActionPanel
+            selectedNode={selectedNode}
+            onClose={handleClosePanel}
+          />
+        )}
       </main>
 
       {/* Footer Info */}
