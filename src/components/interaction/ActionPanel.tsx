@@ -290,7 +290,7 @@ export function ActionPanel({ selectedNode, onClose, runtimeState, currentTick, 
                 <button
                   key={action}
                   onClick={() => handleActionClick(action)}
-                  className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg border border-slate-600 hover:border-slate-500 transition-all duration-200 text-left flex items-center justify-between group"
+                  className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-lg border border-slate-600 hover:border-slate-500 transition-all duration-200 text-left flex items-center justify-between group cursor-pointer pointer-events-auto"
                 >
                   <span className="capitalize">
                     {action.replace(/_/g, ' ')}

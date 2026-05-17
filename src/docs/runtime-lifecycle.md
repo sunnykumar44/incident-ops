@@ -3,6 +3,104 @@
 ## Overview
 This document details the complete flow of how simulation ticks propagate from the engine through the reducer to the UI, ensuring we never have a "frozen UI" issue again.
 
+## Phase 1: Architectural Principles
+
+### Event-Driven Architecture
+The IncidentOps simulation follows a strict **event-driven architecture** where:
+- **Components NEVER mutate state directly**
+- All state changes flow through the EventDispatcher
+- Every action is logged for audit trails and replay
+- State mutations are deterministic and reproducible
+
+**Key Principle**: Components dispatch events; they never mutate state.
+
+```typescript
+// ❌ WRONG: Direct state mutation
+selectedNode.health = 50;
+
+// ✅ CORRECT: Event-driven state change
+globalEventDispatcher.dispatch('USER_ACTION_DISPATCHED', 'info', {
+  actionId: 'restart_service',
+  targetNodeId: selectedNode.id
+});
+```
+
+### Centralized Tick Processing
+The simulation uses a **centralized heartbeat** that drives all state changes:
+- **SimulationTickLoop** runs on a 2000ms interval
+- Each tick executes registered handlers in sequence
+- Handlers apply metric noise, degradation, recovery, and evaluation
+- All updates are merged into a single state snapshot per tick
+
+**Key Principle**: The tick loop is the single source of truth for time progression.
+
+```typescript
+// Tick handlers execute in order:
+1. Generate ±2% noise for metric oscillation
+2. Calculate systemHealthScore from all nodes
+3. Apply pressure degradation (if MELTDOWN state)
+4. Apply recovery improvements (if FIX_DEPLOYING state)
+5. Check success conditions and state transitions
+6. Update stableTicks counter and incident timeline
+```
+
+### Recovery Stabilization Logic
+The simulation requires **5 consecutive stable ticks** before transitioning to RECOVERED:
+- A tick is "stable" when systemHealthScore ≥ 80%
+- The `stableTicks` counter increments on stable ticks
+- The counter resets to 0 if health drops below 80%
+- Only after 5 stable ticks does state transition to RECOVERED
+
+**Key Principle**: Recovery requires sustained stability, not just a momentary spike.
+
+```typescript
+// Recovery evaluation logic
+if (systemHealthScore >= 80) {
+  stableTicks++;
+  if (stableTicks >= 5) {
+    runtimeState = 'RECOVERED';
+  }
+} else {
+  stableTicks = 0; // Reset on any instability
+}
+```
+
+### Audit Trail and Snapshots
+Every tick captures a **complete state snapshot** for replay and debugging:
+- Deep clones of all nodes (to prevent reference sharing)
+- Full simulation state (tick, health, runtime state, timeline)
+- Event log with timestamps and payloads
+- Enables time-travel debugging and incident postmortems
+
+**Key Principle**: Every operational move is logged and auditable.
+
+```typescript
+// Snapshot structure
+{
+  tick: 42,
+  timestamp: '2026-05-17T17:30:00.000Z',
+  runtimeState: 'FIX_DEPLOYING',
+  systemHealthScore: 67,
+  nodes: [/* deep cloned node array */],
+  incidentTimeline: [/* all timeline entries */]
+}
+```
+
+### Metric Oscillation for Realism
+The simulation adds **±2% noise** to all health metrics:
+- Simulates real-world telemetry fluctuations
+- Prevents static, unrealistic health values
+- Applied every tick using seeded randomness
+- Maintains deterministic behavior for replay
+
+**Key Principle**: Real systems oscillate; static metrics are unrealistic.
+
+```typescript
+// Noise generation (±2%)
+const noise = (Math.random() - 0.5) * 4; // -2% to +2%
+node.health = Math.max(0, Math.min(100, node.health + noise));
+```
+
 ## Architecture Components
 
 ### 1. SimulationTickLoop (`src/runtime/simulationTick.ts`)
